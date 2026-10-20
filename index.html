@@ -186,36 +186,19 @@
         }
     });
 
-    // FITUR REPEAT ORDER: JIKA PELANGGAN LAMA KLIK OK, LANGSUNG KE HALAMAN PRODUK
-    phoneInput.addEventListener('blur', async function() {
-        const phone = phoneInput.value.trim();
-        if (phone.length < 10) return;
-
-        try {
-            const { data, error } = await supabaseClient
-                .from('customers')
-                .select('*')
-                .eq('phone_number', phone)
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            if (!error && data && data.length > 0) {
-                const customer = data[0];
-                const gunakanData = confirm(`Halo ${customer.full_name}! Kami menemukan riwayat data pengiriman Anda sebelumnya.\n\nGunakan data tersebut untuk langsung memilih produk?`);
-                
-                if (gunakanData) {
-                    // Simpan data lama ke localStorage agar terbaca di produk.html
-                    localStorage.setItem('gentongmas_customer', JSON.stringify(customer));
-                    
-                    // Langsung arahkan ke halaman produk tanpa perlu isi form dari awal
-                    window.location.href = 'produk.html';
-                }
-            }
-        } catch (err) {
-            console.error('Gagal mengecek pelanggan lama:', err);
+    // PELANGGAN LAMA (satu perangkat): pakai data di perangkat, tanpa membaca database
+window.addEventListener('DOMContentLoaded', () => {
+    if (phoneInput.value) return; // sedang mode ubah alamat
+    const saved = localStorage.getItem('gentongmas_customer');
+    if (!saved) return;
+    try {
+        const c = JSON.parse(saved);
+        if (c && c.full_name && confirm('Halo ' + c.full_name + '! Gunakan data pengiriman yang tersimpan di perangkat ini?\n\nOK = langsung ke katalog\nBatal = isi ulang / ubah alamat')) {
+            window.location.href = 'produk.html';
         }
-    });
-
+    } catch (e) { localStorage.removeItem('gentongmas_customer'); }
+});
+    
     // Submit ke Supabase (Untuk pelanggan baru / yang memilih batal dan input manual / mengubah alamat)
     document.getElementById('customerForm').addEventListener('submit', async function(e) {
         e.preventDefault();
