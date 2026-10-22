@@ -423,26 +423,35 @@
     <div class="footer-bottom">Made with care in Indonesia</div>
   </footer>
 
-  <!-- SCRIPT INTEGRASI PRODUK, QTY, & KOMERCE API -->
+  
   <script>
-    let produkDipilih = {
-        nama: "",
-        hargaSatuan: 0,
-        qty: 1,
-        totalHarga: 0
-    };
+    // ====== KONFIGURASI ONGKIR ======
+    const ONGKIR_URL = 'https://rbmnglczobisuzmyeesf.supabase.co/functions/v1/cek-ongkir';
+    const SUPABASE_ANON_KEY = 'ISI_DENGAN_ANON_KEY_DARI_index.html';
+    // Berat kirim per box dalam gram, sudah termasuk kemasan. GANTI sesuai timbangan asli.
+    const BERAT_PER_BOX = { 200: 250, 250: 300 };
+
+    let produkDipilih = { nama: "", hargaSatuan: 0, qty: 1, totalHarga: 0, berat: 0 };
     let ongkirDipilih = 0;
+    let layananOngkir = "";
 
     function pilihProduk(nama, harga, qtyId) {
         let qty = parseInt(document.getElementById(qtyId).value) || 1;
         let total = harga * qty;
+        const gram = nama.includes('250 Gr') ? 250 : 200;
+        const m = nama.match(/\((\d+)\s*Box\)/i);
+        const boxPerPaket = m ? parseInt(m[1]) : 1;
 
         produkDipilih = {
             nama: nama,
             hargaSatuan: harga,
             qty: qty,
-            totalHarga: total
+            totalHarga: total,
+            berat: qty * boxPerPaket * BERAT_PER_BOX[gram]
         };
+        ongkirDipilih = 0;   // berat berubah, ongkir harus dihitung ulang
+        layananOngkir = "";
+        document.getElementById('info-ongkir').innerText = "";
 
         document.getElementById('selected-product-box').innerHTML = `
             <b>Produk:</b> ${nama}<br>
@@ -458,8 +467,55 @@
         let totalSemua = subtotal + ongkirDipilih;
 
         document.getElementById('lbl-subtotal').innerText = "Rp " + subtotal.toLocaleString('id-ID');
-        document.getElementById('lbl-ongkir').innerText = "Rp " + ongkirDipilih.toLocaleString('id-ID');
+        document.getElementById('lbl-ongkir').innerText = ongkirDipilih > 0 ? "Rp " + ongkirDipilih.toLocaleString('id-ID') : "Belum dihitung";
         document.getElementById('lbl-total').innerText = "Rp " + totalSemua.toLocaleString('id-ID');
+    }
+
+    async function panggilOngkir(payload) {
+        const r = await fetch(ONGKIR_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+            body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || (j.meta && j.meta.message) || 'Gagal menghubungi layanan ongkir');
+        return j;
+    }
+
+    function norm(s) {
+        return String(s || '').toUpperCase().replace(/\b(KABUPATEN|KAB\.|KOTA)\b/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    // Cari ID tujuan di Komerce dari alamat pelanggan (hasilnya disimpan agar hemat kuota)
+    async function cariTujuan(c) {
+        const cacheKey = [c.subdistrict, c.district, c.city, c.postal_code].join('|');
+        const cache = JSON.parse(localStorage.getItem('gentongmas_dest') || 'null');
+        if (cache && cache.key === cacheKey) return cache;
+
+        const kota = norm(c.city), kec = norm(c.district), desa = norm(c.subdistrict), pos = String(c.postal_code || '').trim();
+        let hasil = [];
+        for (const q of [desa + ' ' + kec, kec + ' ' + kota, pos]) {
+            if (!q.trim()) continue;
+            const j = await panggilOngkir({ action: 'search', q: q.trim() });
+            hasil = j.data || [];
+            if (hasil.length) break;
+        }
+        if (!hasil.length) return null;
+
+        let terbaik = null, skorTerbaik = -1;
+        for (const d of hasil) {
+            const labelAsli = d.label || [d.subdistrict_name, d.district_name, d.city_name, d.province_name, d.zip_code].join(', ');
+            const label = norm(labelAsli);
+            let skor = 0;
+            if (kec && label.includes(kec)) skor += 2;
+            if (kota && label.includes(kota)) skor += 2;
+            if (desa && label.includes(desa)) skor += 1;
+            if (pos && label.includes(pos)) skor += 3;
+            if (skor > skorTerbaik) { skorTerbaik = skor; terbaik = { key: cacheKey, id: d.id, label: labelAsli }; }
+        }
+        if (!terbaik || skorTerbaik < 3) return null;
+        localStorage.setItem('gentongmas_dest', JSON.stringify(terbaik));
+        return terbaik;
     }
 
     async function cekOngkir() {
@@ -474,15 +530,33 @@
             return;
         }
 
-        let kurir = document.getElementById('kurir').value;
-        let apiKey = "h3w4pe1p56c177dc08dd04ceAfJEpv6b"; // Komerce API Key
+        const customer = JSON.parse(savedCustomer);
+        const kurir = document.getElementById('kurir').value;
+        const info = document.getElementById('info-ongkir');
+        info.innerText = 'Menghitung ongkir...';
 
-        alert("Menghubungkan ke Komerce API untuk pengecekan kurir " + kurir.toUpperCase() + "...");
-
-        // Simulasi kalkulasi tarif ongkir dinamis berdasarkan API Komerce Shipping Cost
-        ongkirDipilih = 17000; 
-        updateTotal();
-        alert("Tarif ongkir berhasil dihitung: Rp 17.000");
+        try {
+            const tujuan = await cariTujuan(customer);
+            if (!tujuan) {
+                info.innerText = 'Alamat tidak ditemukan otomatis. Ongkir akan dikonfirmasi admin via WhatsApp.';
+                return;
+            }
+            const j = await panggilOngkir({ action: 'cost', destination: String(tujuan.id), weight: produkDipilih.berat, courier: kurir });
+            const layanan = (j.data || []).filter(x => Number(x.cost) > 0);
+            if (!layanan.length) {
+                info.innerText = 'Tarif ' + kurir.toUpperCase() + ' tidak tersedia untuk tujuan ini. Coba ekspedisi lain.';
+                return;
+            }
+            layanan.sort((a, b) => Number(a.cost) - Number(b.cost));
+            const termurah = layanan[0];
+            ongkirDipilih = Number(termurah.cost);
+            layananOngkir = termurah.name + ' ' + termurah.service;
+            updateTotal();
+            info.innerText = 'Tujuan: ' + tujuan.label + ' | ' + layananOngkir + (termurah.etd ? ' (estimasi ' + termurah.etd + ')' : '') + ' | Berat ' + produkDipilih.berat + ' gr';
+        } catch (e) {
+            console.error(e);
+            info.innerText = 'Gagal menghitung ongkir otomatis. Coba lagi, atau minta admin menghitung via WhatsApp.';
+        }
     }
 
     function kirimWhatsApp() {
@@ -511,8 +585,14 @@
         message += `- Jumlah (QTY): ${produkDipilih.qty} Box\n`;
         message += `- Subtotal Produk: Rp ${produkDipilih.totalHarga.toLocaleString('id-ID')}\n`;
         message += `- Ekspedisi Kurir: ${kurir}\n`;
-        message += `- Ongkos Kirim: Rp ${ongkirDipilih.toLocaleString('id-ID')}\n`;
-        message += `- *TOTAL PEMBAYARAN: Rp ${totalSemua.toLocaleString('id-ID')}*\n\n`;
+        if (ongkirDipilih > 0) {
+            message += `- Layanan: ${layananOngkir}\n`;
+            message += `- Ongkos Kirim: Rp ${ongkirDipilih.toLocaleString('id-ID')}\n`;
+            message += `- *TOTAL PEMBAYARAN: Rp ${totalSemua.toLocaleString('id-ID')}*\n\n`;
+        } else {
+            message += `- Ongkos Kirim: akan dikonfirmasi admin\n`;
+            message += `- *Total produk (belum termasuk ongkir): Rp ${produkDipilih.totalHarga.toLocaleString('id-ID')}*\n\n`;
+        }
         message += `*DATA PENERIMA & PENGIRIMAN:*\n`;
         message += `- Nama: ${customer.full_name}\n`;
         message += `- No. WhatsApp: ${customer.phone_number}\n`;
