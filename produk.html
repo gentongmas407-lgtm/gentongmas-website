@@ -339,15 +339,16 @@
 
             <div style="margin-bottom: 15px;">
               <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px;">Pilih Ekspedisi:</label>
-              <select id="kurir" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;">
+              <select id="kurir" onchange="ongkirDipilih = 0; layananOngkir = ''; document.getElementById('info-ongkir').innerText = ''; updateTotal();" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;">
                 <option value="jne">JNE</option>
-                <option value="jnt">J&T Express</option>
+                <option value="jnt">J&amp;T Express</option>
+                <option value="sicepat">SiCepat</option>
+                <option value="anteraja">AnterAja</option>
                 <option value="pos">Pos Indonesia</option>
-                <option value="spx">Shopee Xpress (SPX)</option>
               </select>
             </div>
 
-            <button onclick="cekOngkir()" class="btn btn-primary" style="width: 100%; background-color: #2563eb; font-size: 0.9rem; padding: 10px;"><i class="fa-solid fa-calculator"></i> Cek Tarif Ongkir Komerce</button>
+            <button onclick="cekOngkir()" class="btn btn-primary" style="width: 100%; background-color: #2563eb; font-size: 0.9rem; padding: 10px;"><i class="fa-solid fa-calculator"></i> Cek Ongkir</button> <p id="info-ongkir" style="font-size: 0.8rem; color: #78350f; margin-top: 8px;"></p>
           </div>
 
           <div style="background: #ffffff; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 15px;">
