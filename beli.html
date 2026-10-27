@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '2287844105372217');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=2287844105372217&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel Code -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -417,6 +430,21 @@ document.getElementById("order-form").addEventListener("submit", function (e) {
     "Mohon diproses ya, terima kasih!";
 
   const waUrl = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(pesan);
+
+  // Meta Pixel: pesanan dikirim ke WhatsApp dihitung sebagai Purchase
+  if (window.fbq) {
+    const m = f.varian.value.match(/Rp\s?([\d.]+)/);
+    const harga = m ? parseInt(m[1].replace(/\./g, ''), 10) : 0;
+    const jumlah = parseInt(f.jumlah.value, 10) || 1;
+    fbq('track', 'Purchase', {
+      content_name: f.varian.value,
+      content_type: 'product',
+      num_items: jumlah,
+      value: harga * jumlah,
+      currency: 'IDR'
+    }, { eventID: 'gm-' + Date.now() + '-' + Math.floor(Math.random() * 100000) });
+  }
+
   window.open(waUrl, "_blank");
 });
 </script>
