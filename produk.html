@@ -555,7 +555,7 @@
             info.innerText = 'Tujuan: ' + tujuan.label + ' | ' + layananOngkir + (termurah.etd ? ' (estimasi ' + termurah.etd + ')' : '') + ' | Berat ' + produkDipilih.berat + ' gr';
         } catch (e) {
             console.error(e);
-            info.innerText = 'Gagal menghitung ongkir otomatis. Coba lagi, atau minta admin menghitung via WhatsApp.';
+            info.innerText = 'Gagal menghitung ongkir otomatis (' + e.message + '). Coba lagi, atau minta admin menghitung via WhatsApp.';
         }
     }
 
